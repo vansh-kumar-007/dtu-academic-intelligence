@@ -27,3 +27,9 @@ DTU_RESULT_PAGES = {
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
+
+# Database
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:dtu1234@localhost:5432/dtu_intel"
+)
