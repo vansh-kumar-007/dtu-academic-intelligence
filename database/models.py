@@ -29,7 +29,7 @@ class ResultNotification(Base):
     session     = Column(String(100), nullable=True)
     title       = Column(Text, nullable=False)
     number      = Column(String(50), nullable=True)
-    date        = Column(String(20), nullable=True)       # "20/05/2026"
+    date        = Column(String(50), nullable=True)       # "20/05/2026"
     date_parsed = Column(Date, nullable=True)             # Actual date object
     links       = Column(Text, nullable=True)             # Pipe-separated URLs
     link_count  = Column(Integer, default=0)
