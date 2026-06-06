@@ -1,23 +1,29 @@
 # config/settings.py
-# This file loads all our environment variables in one place.
-# Every other file will import settings from here.
 
+import sys
 import os
-from dotenv import load_dotenv
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Load the .env file
+from dotenv import load_dotenv
 load_dotenv()
 
-# App Settings
 APP_NAME = os.getenv("APP_NAME", "DTU Academic Intelligence Platform")
 APP_ENV = os.getenv("APP_ENV", "development")
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
-# Scraper Settings
-DTU_RESULT_URL = "https://exam.dtu.ac.in/result.htm"
 DTU_BASE_URL = "https://exam.dtu.ac.in"
 
-# Paths
+# All pages we will scrape
+DTU_RESULT_PAGES = {
+    "current": "https://exam.dtu.ac.in/result.htm",
+    "2024":    "https://exam.dtu.ac.in/result_2024.htm",
+    "2023":    "https://exam.dtu.ac.in/result_2023.htm",
+    "2022":    "https://exam.dtu.ac.in/result_2022.htm",
+    "2021":    "https://exam.dtu.ac.in/result_2021.htm",
+    "2020":    "https://exam.dtu.ac.in/result_2020.htm",
+    "all":     "https://exam.dtu.ac.in/result_all.htm",
+}
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
