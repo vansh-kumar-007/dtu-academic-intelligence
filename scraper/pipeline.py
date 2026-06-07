@@ -145,65 +145,60 @@ def run_pipeline(
 
         for i, notification in enumerate(notifications, 1):
 
-            # Get first PDF URL from the pipe-separated links
+            # Get ALL PDF URLs from the pipe-separated links
             urls = [u.strip() for u in (notification.links or "").split("|") if u.strip()]
             if not urls:
                 continue
 
-            url = urls[0]
+            pdf_success = 0
+            pdf_students = 0
 
-            print(f"[{i:04d}/{total}] {notification.programme:<8} "
-                  f"| {notification.number:<12} "
-                  f"| {notification.date or '----------'} "
-                  f"| {notification.title[:45]}")
-
-            summary["pdfs_attempted"] += 1
-
-            try:
-                # Parse the PDF
-                parsed = parse_pdf(url)
-
-                if not parsed["success"]:
-                    print(f"          ⚠️  No students found — skipping")
-                    summary["pdfs_no_students"] += 1
+            for url in urls:
+                if not url.lower().endswith(".pdf"):
                     continue
 
-                student_count = len(parsed["students"])
-                print(f"          ✅ {student_count} students found", end="")
+                try:
+                    parsed = parse_pdf(url)
 
-                if dry_run:
-                    print(f" [DRY RUN — not saving]")
-                    summary["pdfs_success"] += 1
-                    summary["students_new"] += student_count
-                    continue
+                    if not parsed["success"]:
+                        continue
 
-                # Save to database
-                result = save_parsed_pdf(parsed, notification_id=notification.id)
+                    student_count = len(parsed["students"])
 
-                summary["pdfs_success"]    += 1
-                summary["students_new"]    += result["students_new"]
-                summary["results_saved"]   += result["results_saved"]
-                summary["results_skipped"] += result["results_skipped"]
-                summary["subjects_saved"]  += result["subjects_saved"]
-                summary["errors"]          += result["errors"]
+                    if dry_run:
+                        pdf_students += student_count
+                        pdf_success += 1
+                        continue
 
-                print(f" → {result['students_new']} new, "
-                      f"{result['subjects_saved']} grades saved")
+                    result = save_parsed_pdf(parsed, notification_id=notification.id)
+                    pdf_success += 1
+                    pdf_students += result["students_new"]
+                    summary["students_new"]    += result["students_new"]
+                    summary["results_saved"]   += result["results_saved"]
+                    summary["results_skipped"] += result["results_skipped"]
+                    summary["subjects_saved"]  += result["subjects_saved"]
+                    summary["errors"]          += result["errors"]
 
-            except KeyboardInterrupt:
-                print("\n\n  ⚠️  Interrupted by user. Progress saved.")
-                finish_scraping_log(db, log, summary, status="interrupted")
-                break
+                    time.sleep(delay)
 
-            except Exception as e:
-                print(f"          ❌ Error: {e}")
-                summary["pdfs_failed"] += 1
-                summary["errors"] += 1
-                logger.error(f"Pipeline error on {url}: {e}")
+                except KeyboardInterrupt:
+                    print("\n\n  ⚠️  Interrupted by user. Progress saved.")
+                    finish_scraping_log(db, log, summary, status="interrupted")
+                    return summary
 
-            # Be polite to DTU server
-            if i < total:
-                time.sleep(delay)
+                except Exception as e:
+                    summary["pdfs_failed"] += 1
+                    summary["errors"] += 1
+                    logger.error(f"Pipeline error on {url}: {e}")
+
+            summary["pdfs_attempted"] += len(urls)
+            summary["pdfs_success"]   += pdf_success
+
+            if pdf_students > 0:
+                print(f"          ✅ {pdf_students} students across {pdf_success} PDFs")
+            else:
+                print(f"          ⚠️  No students found in any PDF")
+                summary["pdfs_no_students"] += 1
 
         finish_scraping_log(db, log, summary, status="success")
 

@@ -244,11 +244,86 @@ def parse_table(table: list) -> list[dict]:
 
     return students
 
+def parse_consolidated_table(table: list) -> list[dict]:
+    """
+    Parses consolidated result tables which have this structure:
+    ['Sr. No.', 'Name', 'Roll No.', 'Name in Hindi', 'TC', 'CGPA']
+    
+    These appear in graduation/completion result PDFs.
+    They give us CGPA directly which is very valuable.
+    """
+    students = []
+    
+    if len(table) < 2:
+        return students
+
+    # Find column positions from header row
+    header = [str(c or "").strip().lower() for c in table[0]]
+    
+    roll_idx  = None
+    name_idx  = None
+    cgpa_idx  = None
+    tc_idx    = None
+
+    for i, cell in enumerate(header):
+        if "roll" in cell:
+            roll_idx = i
+        elif "name" in cell and "hindi" not in cell:
+            name_idx = i
+        elif "cgpa" in cell:
+            cgpa_idx = i
+        elif cell == "tc" or "credit" in cell:
+            tc_idx = i
+
+    if roll_idx is None:
+        return students
+
+    for row in table[1:]:
+        if not row or len(row) <= max(filter(None, [roll_idx, name_idx, cgpa_idx])):
+            continue
+
+        roll = str(row[roll_idx] or "").strip()
+
+        # Validate roll number
+        if not ROLL_PATTERN.match(roll):
+            continue
+
+        name = str(row[name_idx] or "").strip() if name_idx is not None else ""
+        
+        cgpa = None
+        if cgpa_idx is not None and cgpa_idx < len(row):
+            try:
+                cgpa = float(str(row[cgpa_idx] or "").strip())
+            except ValueError:
+                pass
+
+        total_credits = None
+        if tc_idx is not None and tc_idx < len(row):
+            try:
+                total_credits = int(str(row[tc_idx] or "").strip())
+            except ValueError:
+                pass
+
+        students.append({
+            "roll_number":    roll,
+            "name":           name,
+            "sgpa":           None,
+            "cgpa":           cgpa,
+            "total_credits":  total_credits,
+            "failed_courses": "",
+            "has_backlog":    False,
+            "subject_grades": {},
+            "is_consolidated": True,
+        })
+
+    return students
+
 
 def parse_pdf(url: str) -> dict:
     """
     Full pipeline for one PDF.
-    Downloads → extracts metadata → parses all tables → returns structured data.
+    Auto-detects PDF type (normal semester vs consolidated)
+    and uses the appropriate parser.
     """
     result = {
         "url":      url,
@@ -256,6 +331,7 @@ def parse_pdf(url: str) -> dict:
         "students": [],
         "success":  False,
         "error":    None,
+        "pdf_type": "unknown",
     }
 
     pdf_bytes = download_pdf(url)
@@ -265,8 +341,7 @@ def parse_pdf(url: str) -> dict:
 
     result["metadata"] = extract_pdf_metadata(pdf_bytes)
 
-    # Collect all students across all pages and all tables
-    seen_rolls = set()
+    seen_rolls  = set()
     all_students = []
 
     try:
@@ -274,7 +349,22 @@ def parse_pdf(url: str) -> dict:
             for page in pdf.pages:
                 tables = page.extract_tables()
                 for table in tables:
-                    rows = parse_table(table)
+                    if not table or len(table) < 2:
+                        continue
+
+                    # Detect table type from header row
+                    header_text = " ".join(
+                        str(c or "").lower() for c in table[0]
+                    )
+
+                    # Consolidated tables have CGPA column
+                    if "cgpa" in header_text and "roll" in header_text:
+                        result["pdf_type"] = "consolidated"
+                        rows = parse_consolidated_table(table)
+                    else:
+                        result["pdf_type"] = "semester"
+                        rows = parse_table(table)
+
                     for student in rows:
                         roll = student["roll_number"]
                         if roll not in seen_rolls:

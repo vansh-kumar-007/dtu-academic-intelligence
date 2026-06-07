@@ -139,10 +139,10 @@ def save_semester_result(
         roll_number     = roll_number,
         notification_id = notification_id,
         notification_no = notif_no,
-        session         = None,  # Will be filled from notification later
+        session         = None,
         semester        = metadata.get("semester"),
         sgpa            = student_record.get("sgpa"),
-        cgpa            = student_record.get("cgpa"),
+        cgpa            = student_record.get("cgpa"),  # Now populated from consolidated PDFs
         total_credits   = student_record.get("total_credits"),
         failed_courses  = student_record.get("failed_courses") or None,
         has_backlog     = student_record.get("has_backlog", False),
